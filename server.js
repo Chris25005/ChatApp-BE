@@ -14,8 +14,7 @@ const app = express();
 /* ===================== CORS ===================== */
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://magenta-swan-58beb6.netlify.app/",
-  "https://chatapp-frontend-phi.vercel.app",
+  "https://incandescent-medovik-5cbb8b.netlify.app/"
 ];
 
 app.use(
