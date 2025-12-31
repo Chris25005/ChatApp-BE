@@ -19,8 +19,13 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    },
     credentials: true,
   })
 );
@@ -28,23 +33,18 @@ app.use(
 app.use(express.json());
 
 /* ===================== DATABASE ===================== */
-const MONGO_URI =
-  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/whatsapp_chat";
-
 mongoose
-  .connect(MONGO_URI)
+  .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+  .catch((err) => console.error("❌ MongoDB error:", err));
 
 /* ===================== ROUTES ===================== */
 app.use("/api/auth", authRoutes);
 app.use("/api", chatRoutes);
 
-app.get("/", (req, res) => {
-  res.send("API running");
-});
+app.get("/", (req, res) => res.send("API running"));
 
-/* ===================== SOCKET SERVER ===================== */
+/* ===================== SOCKET ===================== */
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -52,14 +52,12 @@ const io = new Server(server, {
     origin: allowedOrigins,
     methods: ["GET", "POST"],
   },
-  transports: ["polling", "websocket"], // REQUIRED for Render
+  transports: ["polling", "websocket"],
 });
 
 const onlineUsers = {};
 
 io.on("connection", (socket) => {
-  console.log("🔌 Socket connected:", socket.id);
-
   socket.on("user-online", (userId) => {
     socket.userId = userId;
     onlineUsers[userId] = socket.id;
@@ -68,61 +66,22 @@ io.on("connection", (socket) => {
 
   socket.on("sendMessage", (message) => {
     const receiverSocketId = onlineUsers[message.receiverId];
-
-    socket.emit("messageSent", { messageId: message._id });
-
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("receiveMessage", message);
-    }
-  });
-
-  socket.on("messageDelivered", ({ messageId, senderId }) => {
-    const senderSocketId = onlineUsers[senderId];
-    if (senderSocketId) {
-      io.to(senderSocketId).emit("messageDelivered", { messageId });
-    }
-  });
-
-  socket.on("messageSeen", ({ messageIds, senderId }) => {
-    const senderSocketId = onlineUsers[senderId];
-    if (senderSocketId) {
-      messageIds.forEach((id) => {
-        io.to(senderSocketId).emit("messageSeen", { messageId: id });
-      });
-    }
-  });
-
-  socket.on("typing", ({ senderId, receiverId }) => {
-    const receiverSocketId = onlineUsers[receiverId];
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("typing", { senderId });
-    }
-  });
-
-  socket.on("stopTyping", ({ receiverId }) => {
-    const receiverSocketId = onlineUsers[receiverId];
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("stopTyping");
     }
   });
 
   socket.on("disconnect", async () => {
     if (socket.userId) {
       delete onlineUsers[socket.userId];
-
-      await User.findByIdAndUpdate(socket.userId, {
-        lastSeen: new Date(),
-      });
-
+      await User.findByIdAndUpdate(socket.userId, { lastSeen: new Date() });
       io.emit("online-users", Object.keys(onlineUsers));
-      console.log("❌ Socket disconnected:", socket.userId);
     }
   });
 });
 
-/* ===================== START SERVER ===================== */
+/* ===================== START ===================== */
 const PORT = process.env.PORT || 1005;
-
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

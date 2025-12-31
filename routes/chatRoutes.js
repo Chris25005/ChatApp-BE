@@ -5,32 +5,20 @@ const Message = require("../models/Message");
 const router = express.Router();
 
 router.get("/users", async (req, res) => {
-  const users = await User.find()
-    .select("-password")
-    .select("name phone lastSeen");
+  const users = await User.find().select("-password");
   res.json(users);
 });
 
 router.post("/send", async (req, res) => {
-  const { senderId, receiverId, text } = req.body;
-
-  const msg = await Message.create({
-    senderId,
-    receiverId,
-    text,
-    status: "sent",
-  });
-
+  const msg = await Message.create(req.body);
   res.json(msg);
 });
 
 router.get("/messages/:u1/:u2", async (req, res) => {
-  const { u1, u2 } = req.params;
-
   const msgs = await Message.find({
     $or: [
-      { senderId: u1, receiverId: u2 },
-      { senderId: u2, receiverId: u1 },
+      { senderId: req.params.u1, receiverId: req.params.u2 },
+      { senderId: req.params.u2, receiverId: req.params.u1 },
     ],
   }).sort({ createdAt: 1 });
 
