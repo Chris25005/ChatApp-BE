@@ -11,35 +11,48 @@ const User = require("./models/User");
 
 const app = express();
 
-/* ---------- MIDDLEWARE ---------- */
+/* ===================== CORS ===================== */
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://helpful-monstera-0634c7.netlify.app",
+];
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
     credentials: true,
   })
 );
+
 app.use(express.json());
 
-/* ---------- DB ---------- */
-mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/whatsapp_chat")
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.log("❌ Mongo error:", err));
+/* ===================== DATABASE ===================== */
+const MONGO_URI =
+  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/whatsapp_chat";
 
-/* ---------- ROUTES ---------- */
+mongoose
+  .connect(MONGO_URI)
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
+
+/* ===================== ROUTES ===================== */
 app.use("/api/auth", authRoutes);
 app.use("/api", chatRoutes);
 
-app.get("/", (_, res) => res.send("API running"));
+app.get("/", (req, res) => {
+  res.send("API running");
+});
 
-/* ---------- SOCKET ---------- */
+/* ===================== SOCKET SERVER ===================== */
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
   },
+  transports: ["polling", "websocket"], // REQUIRED for Render
 });
 
 const onlineUsers = {};
@@ -54,59 +67,62 @@ io.on("connection", (socket) => {
   });
 
   socket.on("sendMessage", (message) => {
-    const receiverSocket = onlineUsers[message.receiverId];
+    const receiverSocketId = onlineUsers[message.receiverId];
 
     socket.emit("messageSent", { messageId: message._id });
 
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("receiveMessage", message);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("receiveMessage", message);
     }
   });
 
   socket.on("messageDelivered", ({ messageId, senderId }) => {
-    const senderSocket = onlineUsers[senderId];
-    if (senderSocket) {
-      io.to(senderSocket).emit("messageDelivered", { messageId });
+    const senderSocketId = onlineUsers[senderId];
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("messageDelivered", { messageId });
     }
   });
 
   socket.on("messageSeen", ({ messageIds, senderId }) => {
-    const senderSocket = onlineUsers[senderId];
-    if (senderSocket) {
+    const senderSocketId = onlineUsers[senderId];
+    if (senderSocketId) {
       messageIds.forEach((id) => {
-        io.to(senderSocket).emit("messageSeen", { messageId: id });
+        io.to(senderSocketId).emit("messageSeen", { messageId: id });
       });
     }
   });
 
   socket.on("typing", ({ senderId, receiverId }) => {
-    const receiverSocket = onlineUsers[receiverId];
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("typing", { senderId });
+    const receiverSocketId = onlineUsers[receiverId];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("typing", { senderId });
     }
   });
 
   socket.on("stopTyping", ({ receiverId }) => {
-    const receiverSocket = onlineUsers[receiverId];
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("stopTyping");
+    const receiverSocketId = onlineUsers[receiverId];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("stopTyping");
     }
   });
 
   socket.on("disconnect", async () => {
     if (socket.userId) {
       delete onlineUsers[socket.userId];
+
       await User.findByIdAndUpdate(socket.userId, {
         lastSeen: new Date(),
       });
+
       io.emit("online-users", Object.keys(onlineUsers));
       console.log("❌ Socket disconnected:", socket.userId);
     }
   });
 });
 
-/* ---------- START ---------- */
-const PORT = 1005;
-server.listen(PORT, () =>
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
-);
+/* ===================== START SERVER ===================== */
+const PORT = process.env.PORT || 1005;
+
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
