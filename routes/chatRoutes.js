@@ -4,40 +4,50 @@ const Message = require("../models/Message");
 
 const router = express.Router();
 
-/* ===== USERS ===== */
+/* ===================== USERS ===================== */
 router.get("/users", async (req, res) => {
-  try {
-    const users = await User.find().select("-password");
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
+  const users = await User.find().select("-password");
+  res.json(users);
 });
 
-/* ===== SEND MESSAGE ===== */
+/* ===================== SEND ===================== */
 router.post("/send", async (req, res) => {
-  try {
-    const message = await Message.create(req.body);
-    res.json(message);
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
+  const { senderId, receiverId, text } = req.body;
+
+  const message = await Message.create({
+    senderId,
+    receiverId,
+    text,
+    status: "sent",
+  });
+
+  res.json(message);
 });
 
-/* ===== GET MESSAGES ===== */
+/* ===================== MESSAGES ===================== */
 router.get("/messages/:u1/:u2", async (req, res) => {
-  try {
-    const msgs = await Message.find({
-      $or: [
-        { senderId: req.params.u1, receiverId: req.params.u2 },
-        { senderId: req.params.u2, receiverId: req.params.u1 },
-      ],
-    }).sort({ createdAt: 1 });
+  const { u1, u2 } = req.params;
 
-    res.json(msgs);
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
+  const messages = await Message.find({
+    $or: [
+      { senderId: u1, receiverId: u2 },
+      { senderId: u2, receiverId: u1 },
+    ],
+  }).sort({ createdAt: 1 });
+
+  res.json(messages);
+});
+
+/* ===================== MARK SEEN ===================== */
+router.post("/seen", async (req, res) => {
+  const { messageIds } = req.body;
+
+  await Message.updateMany(
+    { _id: { $in: messageIds } },
+    { status: "seen" }
+  );
+
+  res.json({ success: true });
 });
 
 module.exports = router;

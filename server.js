@@ -17,8 +17,8 @@ app.use(express.json());
 app.use(
   cors({
     origin: [
-      "http://localhost:5173", // local dev
-      "https://incandescent-medovik-5cbb8b.netlify.app", // Netlify FE
+      "http://localhost:5173",
+      "https://incandescent-medovik-5cbb8b.netlify.app",
     ],
     credentials: true,
   })
@@ -29,6 +29,11 @@ console.log("JWT_SECRET exists:", !!process.env.JWT_SECRET);
 console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
 
 /* ===================== DATABASE ===================== */
+if (!process.env.MONGODB_URI) {
+  console.error("❌ MONGODB_URI is missing in environment variables");
+  process.exit(1);
+}
+
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ MongoDB connected"))
@@ -56,7 +61,7 @@ const io = new Server(server, {
     ],
     methods: ["GET", "POST"],
   },
-  transports: ["polling", "websocket"], // 🔑 REQUIRED for Render
+  transports: ["polling", "websocket"],
 });
 
 const onlineUsers = new Map();
@@ -66,6 +71,7 @@ io.on("connection", (socket) => {
 
   /* USER ONLINE */
   socket.on("user-online", (userId) => {
+    socket.userId = userId;
     onlineUsers.set(userId, socket.id);
     io.emit("online-users", Array.from(onlineUsers.keys()));
   });
@@ -74,7 +80,18 @@ io.on("connection", (socket) => {
   socket.on("sendMessage", (message) => {
     const receiverSocketId = onlineUsers.get(message.receiverId);
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit("receiveMessage", message);
+      io.to(receiverSocketId).emit("receiveMessage", {
+        ...message,
+        status: "delivered",
+      });
+    }
+  });
+
+  /* MESSAGE SEEN */
+  socket.on("messageSeen", ({ senderId, messageIds }) => {
+    const senderSocketId = onlineUsers.get(senderId);
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("messageSeen", { messageIds });
     }
   });
 
@@ -93,31 +110,19 @@ io.on("connection", (socket) => {
     }
   });
 
-  /* MESSAGE STATUS */
-  socket.on("messageDelivered", ({ messageId, senderId }) => {
-    const senderSocketId = onlineUsers.get(senderId);
-    if (senderSocketId) {
-      io.to(senderSocketId).emit("messageDelivered", { messageId });
-    }
-  });
-
-  socket.on("messageSeen", ({ senderId, messageIds }) => {
-    const senderSocketId = onlineUsers.get(senderId);
-    if (senderSocketId) {
-      messageIds.forEach((id) => {
-        io.to(senderSocketId).emit("messageSeen", { messageId: id });
-      });
-    }
-  });
-
   /* DISCONNECT */
-  socket.on("disconnect", () => {
-    for (const [userId, socketId] of onlineUsers.entries()) {
-      if (socketId === socket.id) {
-        onlineUsers.delete(userId);
-        break;
-      }
+  socket.on("disconnect", async () => {
+    if (socket.userId) {
+      onlineUsers.delete(socket.userId);
+      try {
+        await mongoose
+          .model("User")
+          .findByIdAndUpdate(socket.userId, {
+            lastSeen: new Date(),
+          });
+      } catch {}
     }
+
     io.emit("online-users", Array.from(onlineUsers.keys()));
     console.log("🔴 Socket disconnected:", socket.id);
   });
