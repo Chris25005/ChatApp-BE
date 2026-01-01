@@ -57,7 +57,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:5173",
-      "https://incandescent-medovik-5cbb8b.netlify.app",
+      "https://superb-paletas-c15c1f.netlify.app",
     ],
     methods: ["GET", "POST"],
   },
