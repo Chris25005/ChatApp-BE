@@ -11,11 +11,11 @@ router.post("/register", async (req, res) => {
     const { name, phone, password } = req.body;
 
     if (!name || !phone || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({ message: "All fields required" });
     }
 
-    const existingUser = await User.findOne({ phone });
-    if (existingUser) {
+    const exists = await User.findOne({ phone });
+    if (exists) {
       return res.status(400).json({ message: "User already exists" });
     }
 
@@ -25,19 +25,29 @@ router.post("/register", async (req, res) => {
       name,
       phone,
       password: hashedPassword,
+      lastSeen: new Date(),
     });
 
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
     res.status(201).json({
-      message: "Registration successful",
       user: {
         _id: user._id,
         name: user.name,
         phone: user.phone,
       },
+      token,
     });
-  } catch (error) {
-    console.error("REGISTER ERROR:", error.message);
-    res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    console.error("REGISTER ERROR:", err);
+    res.status(500).json({
+      message: "Register failed",
+      error: err.message,
+    });
   }
 });
 
@@ -46,40 +56,36 @@ router.post("/login", async (req, res) => {
   try {
     const { phone, password } = req.body;
 
-    if (!phone || !password) {
-      return res
-        .status(400)
-        .json({ message: "Phone and password required" });
-    }
-
     const user = await User.findOne({ phone });
     if (!user) {
-      return res.status(400).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const token = jwt.sign(
-      { userId: user._id },
+      { id: user._id },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
     res.json({
-      message: "Login successful",
-      token,
       user: {
         _id: user._id,
         name: user.name,
         phone: user.phone,
       },
+      token,
     });
-  } catch (error) {
-    console.error("LOGIN ERROR:", error.message);
-    res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    console.error("LOGIN ERROR:", err);
+    res.status(500).json({
+      message: "Login failed",
+      error: err.message,
+    });
   }
 });
 

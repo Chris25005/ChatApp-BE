@@ -11,15 +11,24 @@ const chatRoutes = require("./routes/chatRoutes");
 
 const app = express();
 
+/* ===================== ALLOWED ORIGINS ===================== */
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://superb-paletas-c15c1f.netlify.app",
+];
+
 /* ===================== MIDDLEWARE ===================== */
 app.use(express.json());
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://incandescent-medovik-5cbb8b.netlify.app",
-    ],
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    },
     credentials: true,
   })
 );
@@ -30,7 +39,7 @@ console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
 
 /* ===================== DATABASE ===================== */
 if (!process.env.MONGODB_URI) {
-  console.error("❌ MONGODB_URI is missing in environment variables");
+  console.error("❌ MONGODB_URI missing");
   process.exit(1);
 }
 
@@ -55,13 +64,11 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://superb-paletas-c15c1f.netlify.app",
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
+    credentials: true,
   },
-  transports: ["polling", "websocket"],
+  transports: ["polling", "websocket"], // REQUIRED FOR RENDER
 });
 
 const onlineUsers = new Map();
