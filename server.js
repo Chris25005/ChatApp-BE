@@ -14,7 +14,7 @@ const app = express();
 /* ===================== ALLOWED ORIGINS ===================== */
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://superb-paletas-c15c1f.netlify.app",
+  "",
 ];
 
 /* ===================== MIDDLEWARE ===================== */
