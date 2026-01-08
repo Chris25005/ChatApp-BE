@@ -13,7 +13,7 @@ const app = express();
 
 /* ===================== ALLOWED ORIGINS ===================== */
 const allowedOrigins = [
-  "http://localhost:5173",
+ 
   "https://chatapp008.netlify.app/",
 ];
 
