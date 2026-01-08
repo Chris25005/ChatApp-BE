@@ -36,8 +36,8 @@ app.use(
 );
 
 /* 🔑 VERY IMPORTANT: preflight */
-//app.options("*", cors());
-app.use(cors());
+app.options("*", cors());
+//app.use(cors());
 
 /* ===================== DEBUG ===================== */
 console.log("JWT_SECRET exists:", !!process.env.JWT_SECRET);
