@@ -72,7 +72,7 @@ router.post("/login", async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.set('Access-Control-Allow-Origin', 'https://chatapp008.netlify.app/');
+    res.set('Access-Control-Allow-Origin', 'https://chatapp008.netlify.app');
    
     res.json({
       user: {
