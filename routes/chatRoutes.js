@@ -10,7 +10,9 @@ const Message = require("../models/Message");
 router.get("/users", async (req, res) => {
   try {
     const users = await User.find().select("-password");
+    res.set('Access-Control-Allow-Origin', 'https://chatapp008.netlify.app/');
     res.json(users);
+
   } catch (err) {
     console.error("GET USERS ERROR:", err.message);
     res.status(500).json({ message: "Failed to fetch users" });
